@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pixel Walk Cycle — RimWorld-style Sprite Sheet</title>
+<style>
+  :root { color-scheme: light; }
+  body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: #fff; color: #111; }
+  main { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 1.6rem; margin: 0 0 8px; }
+  p.sub { color: #555; margin: 0 0 20px; }
+  .sheet { border: 2px solid #111; border-radius: 12px; overflow: hidden; background: #fff; }
+  .sheet img { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+  .frames { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 16px; }
+  .frame { border: 1px solid #ddd; border-radius: 8px; padding: 10px; background: #fafafa; }
+  .frame h2 { font-size: 0.85rem; margin: 0 0 4px; }
+  .frame p { font-size: 0.8rem; color: #555; margin: 0; }
+  footer { margin-top: 24px; font-size: 0.8rem; color: #777; }
+  @media (max-width: 600px) { .frames { grid-template-columns: repeat(2, 1fr); } h1 { font-size: 1.25rem; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Pixel-Art Walk Cycle — 4 Frames (2:1)</h1>
+  <p class="sub">RimWorld-style character walking left to right, isometric side view. Grey tunic, dark pants, thick outlines, flat colors.</p>
+  <div class="sheet">
+    <img src="./walk_cycle_2x1.png" alt="4-frame walk cycle sprite sheet" />
+  </div>
+  <div class="frames">
+    <div class="frame"><h2>1 — Contact</h2><p>Left leg forward, right leg back. Arm counter-swing.</p></div>
+    <div class="frame"><h2>2 — Passing</h2><p>Legs together mid-stride, weight over support foot.</p></div>
+    <div class="frame"><h2>3 — Opposite contact</h2><p>Right leg forward, left leg back. Opposite arm swing.</p></div>
+    <div class="frame"><h2>4 — Opposite passing</h2><p>Mirror of passing, slight lift for loop continuity.</p></div>
+  </div>
+  <footer>2D Game · Phone/Tablet ready · White background · Minimalist face · Leg + arm focus</footer>
+</main>
+</body>
+</html>
