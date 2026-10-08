@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0f0c29">
+<title>Тетрис — 2D Game</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; overscroll-behavior:none; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    color:#fff;
+    display:flex; flex-direction:column; align-items:center;
+    min-height:100dvh;
+    user-select:none; -webkit-user-select:none;
+    touch-action:manipulation;
+    overflow-x:hidden;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  #app { width:100%; max-width:480px; display:flex; flex-direction:column; align-items:center; padding:10px 12px 16px; gap:10px; }
+  header { text-align:center; }
+  h1 {
+    font-size:clamp(22px,6vw,30px); font-weight:800; letter-spacing:4px;
+    background:linear-gradient(90deg,#ff6b6b,#feca57,#1dd1a1,#54a0ff,#a55eea);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .subtitle { font-size:12px; opacity:.6; letter-spacing:2px; }
+  #hud { display:flex; gap:8px; width:100%; justify-content:space-between; }
+  .card {
+    flex:1; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14);
+    border-radius:12px; padding:8px 6px; text-align:center; backdrop-filter:blur(6px);
+  }
+  .card .label { font-size:10px; text-transform:uppercase; letter-spacing:1.5px; opacity:.6; }
+  .card .value { font-size:clamp(16px,5vw,22px); font-weight:800; font-variant-numeric:tabular-nums; }
+  #best-row { font-size:12px; opacity:.7; }
+  #best-row b { color:#feca57; }
+  #stage-wrap {
+    position:relative; width:100%; display:flex; justify-content:center; gap:10px;
+  }
+  #side { display:flex; flex-direction:column; gap:10px; width:84px; flex-shrink:0; }
+  #side .card { padding:6px 4px; }
+  #next-canvas, #hold-canvas { width:100%; height:auto; display:block; }
+  #board-wrap {
+    position:relative;
+    border-radius:14px; overflow:hidden;
+    border:2px solid rgba(255,255,255,.2);
+    box-shadow:0 10px 40px rgba(0,0,0,.5);
+    background:#111;
+    touch-action:none;
+  }
+  canvas#board { display:block; touch-action:none; }
+  #overlay {
+    position:absolute; inset:0; display:flex; flex-direction:column; gap:12px;
+    align-items:center; justify-content:center; text-align:center;
+    background:rgba(8,8,20,.82); backdrop-filter:blur(4px);
+    padding:20px; z-index:5;
+  }
+  #overlay.hidden { display:none; }
+  #overlay h2 { font-size:28px; letter-spacing:2px; }
+  #overlay p { font-size:14px; opacity:.8; line-height:1.5; }
+  .btn {
+    border:none; border-radius:14px; padding:14px 34px;
+    font-size:17px; font-weight:800; letter-spacing:1px; color:#1a1a2e;
+    background:linear-gradient(135deg,#feca57,#ff9ff3);
+    cursor:pointer; box-shadow:0 6px 20px rgba(254,202,87,.4);
+    touch-action:manipulation;
+  }
+  .btn:active { transform:scale(.96); }
+  .btn.secondary { background:rgba(255,255,255,.15); color:#fff; box-shadow:none; border:1px solid rgba(255,255,255,.25); padding:10px 20px; font-size:14px; }
+  #controls { width:100%; display:grid; grid-template-columns:repeat(5,1fr); gap:8px; }
+  .tbtn {
+    border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.1);
+    color:#fff; border-radius:14px; padding:0; height:58px; font-size:24px;
+    display:flex; align-items:center; justify-content:center; flex-direction:column;
+    cursor:pointer; backdrop-filter:blur(4px); touch-action:manipulation;
+  }
+  .tbtn small { font-size:9px; opacity:.6; letter-spacing:1px; }
+  .tbtn:active { background:rgba(255,255,255,.28); transform:scale(.94); }
+  .tbtn.wide { grid-column:span 1; }
+  #controls-row2 { width:100%; display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+  .tbtn.drop { background:linear-gradient(135deg,#1dd1a1,#54a0ff); border:none; font-weight:800; }
+  .hint { font-size:11px; opacity:.5; text-align:center; line-height:1.6; padding:0 10px; }
+  #flash { position:absolute; inset:0; background:#fff; opacity:0; pointer-events:none; z-index:4; transition:opacity .25s; }
+  @media (min-width:700px) {
+    #app { max-width:560px; }
+    #side { width:110px; }
+    .tbtn { height:52px; }
+  }
+  @media (max-height:700px) {
+    h1 { font-size:20px; }
+    .tbtn { height:50px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>ТЕТРИС</h1>
+    <div class="subtitle">2D GAME • PHONE / TABLET</div>
+  </header>
+
+  <div id="hud">
+    <div class="card"><div class="label">Счёт</div><div class="value" id="score">0</div></div>
+    <div class="card"><div class="label">Линии</div><div class="value" id="lines">0</div></div>
+    <div class="card"><div class="label">Уровень</div><div class="value" id="level">1</div></div>
+  </div>
+  <div id="best-row">🏆 Рекорд: <b id="best">0</b></div>
+
+  <div id="stage-wrap">
+    <div id="board-wrap">
+      <canvas id="board" width="300" height="600"></canvas>
+      <div id="flash"></div>
+      <div id="overlay">
+        <h2 id="ov-title">ТЕТРИС</h2>
+        <p id="ov-text">Собирай линии!<br>Свайп ◀ ▶ — двигать<br>Свайп ▼ — ускорить • Тап — повернуть<br>Или используй кнопки ниже 👇</p>
+        <button class="btn" id="start-btn">▶ ИГРАТЬ</button>
+      </div>
+    </div>
+    <div id="side">
+      <div class="card"><div class="label">Далее</div><canvas id="next-canvas" width="120" height="120"></canvas></div>
+      <div class="card"><div class="label">Холд</div><canvas id="hold-canvas" width="120" height="80"></canvas></div>
+      <div class="card"><div class="label">Фигура</div><div class="value" id="pieces" style="font-size:16px">0</div></div>
+    </div>
+  </div>
+
+  <div id="controls">
+    <button class="tbtn" id="btn-left">◀<small>ВЛЕВО</small></button>
+    <button class="tbtn" id="btn-right">▶<small>ВПРАВО</small></button>
+    <button class="tbtn" id="btn-rotate">⟳<small>ПОВЕРНУТЬ</small></button>
+    <button class="tbtn" id="btn-down">▼<small>ВНИЗ</small></button>
+    <button class="tbtn" id="btn-hold">⇄<small>ХОЛД</small></button>
+  </div>
+  <div id="controls-row2">
+    <button class="tbtn secondary-btn tbtn" id="btn-pause" style="height:48px;font-size:15px">⏸ Пауза</button>
+    <button class="tbtn drop" id="btn-drop" style="height:48px;font-size:15px">⚡ ДРОП</button>
+    <button class="tbtn" id="btn-restart" style="height:48px;font-size:15px">↻ Заново</button>
+  </div>
+
+  <div class="hint">⌨️ На клавиатуре: ← → двигать, ↓ ускорить, ↑ / X повернуть, Z повернуть обратно, Space — дроп, C — холд, P — пауза</div>
+</div>
+
+<script>
+(() => {
+"use strict";
+const COLS = 10, ROWS = 20;
+const boardCanvas = document.getElementById('board');
+const ctx = boardCanvas.getContext('2d');
+const nextCanvas = document.getElementById('next-canvas');
+const nctx = nextCanvas.getContext('2d');
+const holdCanvas = document.getElementById('hold-canvas');
+const hctx = holdCanvas.getContext('2d');
+
+const COLORS = { I:'#22d3ee', O:'#facc15', T:'#c084fc', S:'#4ade80', Z:'#fb7185', J:'#60a5fa', L:'#fb923c' };
+const SHAPES = {
+  I: [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+  O: [[1,1],[1,1]],
+  T: [[0,1,0],[1,1,1],[0,0,0]],
+  S: [[0,1,1],[1,1,0],[0,0,0]],
+  Z: [[1,1,0],[0,1,1],[0,0,0]],
+  J: [[1,0,0],[1,1,1],[0,0,0]],
+  L: [[0,0,1],[1,1,1],[0,0,0]]
+};
+const TYPES = Object.keys(SHAPES);
+
+// --- responsive board size ---
+let CELL = 30;
+function fitBoard() {
+  const sideW = window.innerWidth >= 700 ? 110 : 84;
+  const gap = 10, appPad = 24;
+  const availW = Math.min(window.innerWidth - appPad - sideW - gap, 360);
+  const availH = window.innerHeight - 380 > 200 ? window.innerHeight - 380 : 400;
+  CELL = Math.max(18, Math.floor(Math.min(availW / COLS, availH / ROWS)));
+  boardCanvas.width = COLS * CELL;
+  boardCanvas.height = ROWS * CELL;
+  boardCanvas.style.width = boardCanvas.width + 'px';
+  boardCanvas.style.height = boardCanvas.height + 'px';
+}
+window.addEventListener('resize', () => { fitBoard(); draw(); drawMini(); });
+fitBoard();
+
+// --- audio (tiny synth) ---
+let AC = null;
+function beep(freq, dur=0.07, type='square', vol=0.05) {
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.value = vol;
+    o.connect(g); g.connect(AC.destination);
+    o.start(); g.gain.exponentialRampToValueAtTime(0.0001, AC.currentTime + dur);
+    o.stop(AC.currentTime + dur);
+  } catch(e){}
+}
+const sfx = {
+  move(){ beep(200, .04); },
+  rotate(){ beep(330, .05); },
+  lock(){ beep(140, .08, 'square'); },
+  clear(n){ [523,659,784,1046].slice(0,n).forEach((f,i)=>setTimeout(()=>beep(f,.1,'square'),i*70)); },
+  level(){ [440,554,659,880].forEach((f,i)=>setTimeout(()=>beep(f,.12,'triangle'),i*90)); },
+  over(){ [400,300,200,120].forEach((f,i)=>setTimeout(()=>beep(f,.2,'sawtooth',.04),i*150)); }
+};
+
+// --- state ---
+let grid, cur, next, hold, canHold, bag;
+let score, lines, level, pieces, dropCounter, dropInterval, lastTime;
+let running = false, paused = false, gameOver = false, fastDrop = false;
+let best = +(localStorage.getItem('tetris-best') || 0);
+document.getElementById('best').textContent = best;
+
+function newBag() {
+  bag = [...TYPES];
+  for (let i = bag.length-1; i > 0; i--) { const j = (Math.random()*(i+1))|0; [bag[i],bag[j]]=[bag[j],bag[i]]; }
+}
+function takeFromBag() { if (!bag || !bag.length) newBag(); return bag.pop(); }
+function makePiece(type) {
+  return { type, m: SHAPES[type].map(r=>r.slice()), x: ((COLS - SHAPES[type][0].length)/2)|0, y: type==='I'?-1:0 };
+}
+function reset() {
+  grid = Array.from({length:ROWS}, () => Array(COLS).fill(null));
+  newBag(); next = makePiece(takeFromBag());
+  hold = null; canHold = true;
+  score=0; lines=0; level=1; pieces=0;
+  dropCounter=0; dropInterval=800; lastTime=0;
+  gameOver=false; paused=false;
+  spawn();
+  updateHUD();
+}
+function spawn() {
+  cur = next; next = makePiece(takeFromBag());
+  cur.x = ((COLS - cur.m[0].length)/2)|0; cur.y = cur.type==='I'?-1:0;
+  canHold = true;
+  if (collides(cur.m, cur.x, cur.y)) {
+    cur.y = -1;
+    if (collides(cur.m, cur.x, cur.y)) { doGameOver(); }
+  }
+  drawMini();
+}
+function rotate(m, dir=1) {
+  const N = m.length, r = Array.from({length:N},()=>Array(N).fill(0));
+  for (let y=0;y<N;y++) for(let x=0;x<N;x++) r[y][x] = dir>0 ? m[N-1-x][y] : m[x][N-1-y];
+  return r;
+}
+function collides(m, px, py) {
+  for (let y=0;y<m.length;y++) for(let x=0;x<m[y].length;x++) {
+    if (!m[y][x]) continue;
+    const nx=px+x, ny=py+y;
+    if (nx<0||nx>=COLS||ny>=ROWS) return true;
+    if (ny>=0 && grid[ny][nx]) return true;
+  }
+  return false;
+}
+function merge() {
+  cur.m.forEach((row,y)=>row.forEach((v,x)=>{
+    if (v && cur.y+y>=0) grid[cur.y+y][cur.x+x]=cur.type;
+  }));
+}
+function clearLines() {
+  let n=0;
+  for (let y=ROWS-1;y>=0;y--) {
+    if (grid[y].every(c=>c)) { grid.splice(y,1); grid.unshift(Array(COLS).fill(null)); n++; y++; }
+  }
+  if (n>0) {
+    const pts = [0,100,300,500,800][n] * level;
+    score += pts; lines += n; pieces++;
+    const nl = Math.floor(lines/10)+1;
+    if (nl>level) { level=nl; dropInterval=Math.max(60, 800*Math.pow(0.85,level-1)); sfx.level(); }
+    sfx.clear(n);
+    flash();
+    if (score>best) { best=score; localStorage.setItem('tetris-best',best); }
+  } else pieces++;
+  updateHUD();
+}
+function doGameOver() {
+  gameOver=true; running=false;
+  sfx.over();
+  if (score>best) { best=score; localStorage.setItem('tetris-best',best); }
+  document.getElementById('best').textContent = best;
+  showOverlay('ИГРА ОКОНЧЕНА', `Счёт: <b>${score}</b><br>Линии: ${lines} • Уровень: ${level}<br>Рекорд: <b>${best}</b>`, '↻ ИГРАТЬ СНОВА');
+}
+function updateHUD() {
+  document.getElementById('score').textContent = score;
+  document.getElementById('lines').textContent = lines;
+  document.getElementById('level').textContent = level;
+  document.getElementById('pieces').textContent = pieces;
+  document.getElementById('best').textContent = best;
+}
+function flash(){ const f=document.getElementById('flash'); f.style.opacity=.35; setTimeout(()=>f.style.opacity=0,120); }
+
+// --- actions ---
+function move(dx){ if(!canAct())return; if(!collides(cur.m,cur.x+dx,cur.y)){cur.x+=dx;sfx.move();} }
+function softDrop(){ if(!canAct())return false; if(!collides(cur.m,cur.x,cur.y+1)){cur.y++;score+=fastDrop?2:1;updateHUD();return true;} return false; }
+function hardDrop(){ if(!canAct())return; let d=0; while(!collides(cur.m,cur.x,cur.y+1)){cur.y++;d++;} score+=d*2; merge(); clearLines(); sfx.lock(); if(!gameOver) spawn(); }
+function tryRotate(dir=1){ if(!canAct())return; const r=rotate(cur.m,dir);
+  for (const [dx,dy] of [[0,0],[-1,0],[1,0],[0,-1],[-2,0],[2,0]]) {
+    if(!collides(r,cur.x+dx,cur.y+dy)){cur.m=r;cur.x+=dx;cur.y+=dy;sfx.rotate();return;}
+  }
+}
+function doHold(){ if(!canAct()||!canHold)return; sfx.rotate();
+  if(!hold){hold=cur.type;spawn();} else {const t=hold;hold=cur.type;cur=makePiece(t);if(collides(cur.m,cur.x,cur.y)){doGameOver();return;}}
+  canHold=false; drawMini();
+}
+function canAct(){ return running && !paused && !gameOver && cur; }
+function togglePause(){
+  if(!running||gameOver)return;
+  paused=!paused;
+  document.getElementById('btn-pause').textContent = paused?'▶ Продолжить':'⏸ Пауза';
+  if(paused) showOverlay('ПАУЗА','Нажми «Продолжить», чтобы играть дальше','▶ ПРОДОЛЖИТЬ');
+  else hideOverlay();
+}
+
+// --- overlay ---
+const overlay=document.getElementById('overlay');
+function showOverlay(t,html,btn){ document.getElementById('ov-title').textContent=t; document.getElementById('ov-text').innerHTML=html; document.getElementById('start-btn').textContent=btn; overlay.classList.remove('hidden'); }
+function hideOverlay(){ overlay.classList.add('hidden'); }
+document.getElementById('start-btn').addEventListener('click', () => {
+  try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();AC.resume();}catch(e){}
+  if(gameOver || !running){ reset(); running=true; lastTime=performance.now(); hideOverlay(); requestAnimationFrame(loop); }
+  else if(paused){ togglePause(); }
+});
+
+// --- loop ---
+function loop(t){
+  if(!running) return;
+  if(paused){ requestAnimationFrame(loop); lastTime=t; return; }
+  const dt=t-lastTime; lastTime=t;
+  dropCounter += fastDrop ? dt*20 : dt;
+  if(dropCounter>dropInterval){
+    dropCounter=0;
+    if(!collides(cur.m,cur.x,cur.y+1)) cur.y++;
+    else { merge(); clearLines(); sfx.lock(); if(!gameOver) spawn(); if(!running) return; }
+  }
+  draw();
+  if(running) requestAnimationFrame(loop);
+}
+
+// --- drawing ---
+function drawCell(g, x, y, s, color, ghost=false) {
+  const px=x*s, py=y*s;
+  g.save();
+  if(ghost){ g.globalAlpha=.28; }
+  const grad=g.createLinearGradient(px,py,px,py+s);
+  grad.addColorStop(0,color); grad.addColorStop(1,'rgba(0,0,0,.45)');
+  g.fillStyle=grad;
+  const r=Math.max(2,s*0.18);
+  g.beginPath();
+  g.roundRect ? g.roundRect(px+1,py+1,s-2,s-2,r) : g.rect(px+1,py+1,s-2,s-2);
+  g.fill();
+  g.fillStyle='rgba(255,255,255,.35)';
+  g.fillRect(px+3,py+3,s-6,Math.max(1,s*0.08));
+  g.restore();
+}
+function ghostY(){
+  let gy=cur.y;
+  while(!collides(cur.m,cur.x,gy+1)) gy++;
+  return gy;
+}
+function draw(){
+  ctx.fillStyle='#0b0b18'; ctx.fillRect(0,0,boardCanvas.width,boardCanvas.height);
+  // grid lines
+  ctx.strokeStyle='rgba(255,255,255,.05)'; ctx.lineWidth=1;
+  for(let x=1;x<COLS;x++){ctx.beginPath();ctx.moveTo(x*CELL+.5,0);ctx.lineTo(x*CELL+.5,boardCanvas.height);ctx.stroke();}
+  for(let y=1;y<ROWS;y++){ctx.beginPath();ctx.moveTo(0,y*CELL+.5);ctx.lineTo(boardCanvas.width,y*CELL+.5);ctx.stroke();}
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++) if(grid[y][x]) drawCell(ctx,x,y,CELL,COLORS[grid[y][x]]);
+  if(cur && canAct()){
+    const gy=ghostY();
+    cur.m.forEach((row,dy)=>row.forEach((v,dx)=>{ if(v) drawCell(ctx,cur.x+dx,gy+dy,CELL,COLORS[cur.type],true); }));
+    cur.m.forEach((row,dy)=>row.forEach((v,dx)=>{ if(v&&(cur.y+dy)>=0) drawCell(ctx,cur.x+dx,cur.y+dy,CELL,COLORS[cur.type]); }));
+  }
+}
+function drawMiniPiece(g, type, cw, ch){
+  g.clearRect(0,0,cw,ch);
+  if(!type) return;
+  const m=SHAPES[type];
+  const s=Math.min(cw/(m[0].length+0.6), ch/(m.length+0.6));
+  const ox=(cw-m[0].length*s)/2, oy=(ch-m.length*s)/2;
+  m.forEach((row,y)=>row.forEach((v,x)=>{
+    if(!v)return;
+    const px=ox+x*s, py=oy+y*s;
+    const grad=g.createLinearGradient(px,py,px,py+s);
+    grad.addColorStop(0,COLORS[type]); grad.addColorStop(1,'rgba(0,0,0,.45)');
+    g.fillStyle=grad;
+    g.beginPath();
+    g.roundRect?g.roundRect(px+1,py+1,s-2,s-2,3):g.rect(px+1,py+1,s-2,s-2);
+    g.fill();
+  }));
+}
+function drawMini(){
+  drawMiniPiece(nctx, next&&next.type, nextCanvas.width, nextCanvas.height);
+  drawMiniPiece(hctx, hold, holdCanvas.width, holdCanvas.height);
+}
+
+// --- buttons (touch repeat) ---
+function bindHold(btn, fn){
+  let iv=null, to=null;
+  const start=e=>{e.preventDefault();fn();
+    to=setTimeout(()=>{iv=setInterval(fn,70);},280);
+  };
+  const end=()=>{clearTimeout(to);clearInterval(iv);};
+  btn.addEventListener('pointerdown',start);
+  ['pointerup','pointerleave','pointercancel'].forEach(ev=>btn.addEventListener(ev,end));
+}
+bindHold(document.getElementById('btn-left'),()=>move(-1));
+bindHold(document.getElementById('btn-right'),()=>move(1));
+document.getElementById('btn-rotate').addEventListener('click',e=>{e.preventDefault();tryRotate(1);});
+document.getElementById('btn-hold').addEventListener('click',e=>{e.preventDefault();doHold();});
+document.getElementById('btn-drop').addEventListener('click',e=>{e.preventDefault();hardDrop();draw();});
+document.getElementById('btn-pause').addEventListener('click',e=>{e.preventDefault();togglePause();});
+document.getElementById('btn-restart').addEventListener('click',e=>{e.preventDefault();reset();running=true;paused=false;hideOverlay();document.getElementById('btn-pause').textContent='⏸ Пауза';lastTime=performance.now();requestAnimationFrame(loop);});
+const downBtn=document.getElementById('btn-down');
+downBtn.addEventListener('pointerdown',e=>{e.preventDefault();fastDrop=true;});
+['pointerup','pointerleave','pointercancel'].forEach(ev=>downBtn.addEventListener(ev,()=>fastDrop=false));
+
+// --- swipe + tap on board ---
+let tsx=0,tsy=0,tst=0,moved=false;
+const wrap=document.getElementById('board-wrap');
+wrap.addEventListener('touchstart',e=>{const t=e.changedTouches[0];tsx=t.clientX;tsy=t.clientY;tst=Date.now();moved=false;},{passive:true});
+wrap.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  const t=e.changedTouches[0], dx=t.clientX-tsx, dy=t.clientY-tsy;
+  const th=CELL*0.9;
+  if(Math.abs(dx)>th && Math.abs(dx)>Math.abs(dy)){ move(dx>0?1:-1); tsx=t.clientX; tsy=t.clientY; moved=true; }
+  else if(dy>th && Math.abs(dy)>Math.abs(dx)){ softDrop(); draw(); tsy=t.clientY; tsx=t.clientX; moved=true; }
+},{passive:false});
+wrap.addEventListener('touchend',e=>{
+  const t=e.changedTouches[0], dx=t.clientX-tsx, dy=t.clientY-tsy, dt=Date.now()-tst;
+  if(!moved && dt<300 && Math.abs(dx)<14 && Math.abs(dy)<14){ tryRotate(1); draw(); }
+  else if(dy<-40 && Math.abs(dy)>Math.abs(dx)*1.6){ hardDrop(); draw(); }
+},{passive:true});
+
+// --- keyboard ---
+window.addEventListener('keydown',e=>{
+  if(['ArrowLeft','ArrowRight','ArrowDown','ArrowUp',' '].includes(e.key)) e.preventDefault();
+  if(!running&&!gameOver&&(e.key===' '||e.key==='Enter')){document.getElementById('start-btn').click();return;}
+  switch(e.key){
+    case 'ArrowLeft': move(-1); break;
+    case 'ArrowRight': move(1); break;
+    case 'ArrowDown': softDrop(); break;
+    case 'ArrowUp': case 'x': case 'X': case 'В': case 'в': tryRotate(1); break;
+    case 'z': case 'Z': case 'Я': case 'я': tryRotate(-1); break;
+    case ' ': hardDrop(); break;
+    case 'c': case 'C': case 'с': case 'С': doHold(); break;
+    case 'p': case 'P': case 'з': case 'З': case 'Escape': togglePause(); break;
+  }
+  draw();
+});
+
+// init idle demo board
+reset(); running=false; draw(); drawMini(); updateHUD();
+showOverlay('ТЕТРИС','Собирай линии!<br>Свайп ◀ ▶ — двигать<br>Свайп ▼ — ускорить, ▲ — дроп<br>Тап — повернуть<br>Или используй кнопки ниже 👇','▶ ИГРАТЬ');
+})();
+</script>
+</body>
+</html>
